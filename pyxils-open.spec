@@ -2,12 +2,17 @@
 from pathlib import Path
 
 project = Path(SPECPATH)
+datas = []
+for folder, target in ((project / "build" / "_tcl_data", "_tcl_data"),
+                       (project / "build" / "_tk_data", "_tk_data")):
+    if folder.exists():
+        datas.append((str(folder), target))
 
 a = Analysis(
     [str(project / "build_entry.py")],
     pathex=[str(project / "src")],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
