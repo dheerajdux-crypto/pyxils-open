@@ -4,7 +4,7 @@ from pathlib import Path
 project = Path(SPECPATH)
 
 a = Analysis(
-    [str(project / "src" / "pyxils_open" / "__main__.py")],
+    [str(project / "build_entry.py")],
     pathex=[str(project / "src")],
     binaries=[],
     datas=[],
