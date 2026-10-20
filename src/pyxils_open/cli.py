@@ -8,7 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from .core import DownloadCancelled, DownloadManager, DownloadPaused, Progress, format_bytes, format_duration
-from .mega import fetch_file
+from .mega import fetch_file, fetch_folder, is_public_folder_link
 
 
 class App(tk.Tk):
@@ -114,6 +114,11 @@ class App(tk.Tk):
                 mega_file = fetch_file(self.url.get().strip())
                 self.status.set("MEGA link ready")
                 self.status_detail.set(f"{mega_file.name} · {format_bytes(mega_file.size)} · encrypted public file")
+                return
+            if is_public_folder_link(self.url.get().strip()):
+                files = fetch_folder(self.url.get().strip())
+                self.status.set("MEGA folder ready")
+                self.status_detail.set(f"{len(files)} downloadable file(s) · choose a destination folder")
                 return
             result = self.manager.probe(self.url.get().strip())
             length = format_bytes(result.content_length) if result.content_length is not None else "unknown size"

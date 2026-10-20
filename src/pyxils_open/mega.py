@@ -23,6 +23,10 @@ class MegaFile:
     download_url: str
 
 
+def is_public_folder_link(url: str) -> bool:
+    return "mega.nz/folder/" in url and "#" in url
+
+
 def _decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
@@ -40,6 +44,17 @@ def parse_public_link(url: str) -> tuple[str, bytes]:
     key = _decode(fragment)
     if not handle or len(key) != 32:
         raise ValueError("Invalid MEGA file link or decryption key")
+    return handle, key
+
+
+def parse_public_folder_link(url: str) -> tuple[str, bytes]:
+    marker = "/folder/"
+    if "mega.nz" not in url or marker not in url or "#" not in url:
+        raise ValueError("Expected a public MEGA folder link")
+    handle = url.split(marker, 1)[1].split("#", 1)[0].split("?", 1)[0]
+    key = _decode(url.split("#", 1)[1].split("?", 1)[0])
+    if not handle or len(key) != 16:
+        raise ValueError("Invalid MEGA folder link or decryption key")
     return handle, key
 
 
@@ -68,6 +83,53 @@ def fetch_file(url: str, timeout: float = 120) -> MegaFile:
         raise RuntimeError("MEGA file attributes could not be decrypted")
     info = json.loads(attributes[4:].rstrip(b"\0").decode("utf-8"))
     return MegaFile(handle, link_key, info.get("n", "mega-download.bin"), int(result["s"]), result["g"])
+
+
+def fetch_folder(url: str, timeout: float = 120) -> list[MegaFile]:
+    """Resolve downloadable files from a public MEGA folder."""
+    from Crypto.Cipher import AES
+
+    folder_handle, folder_key = parse_public_folder_link(url)
+    api_url = f"https://g.api.mega.co.nz/cs?id={random.randrange(1 << 30)}&n={folder_handle}"
+    request = urllib.request.Request(
+        api_url,
+        data=_encode_api_request([{"a": "f", "c": "1", "r": "1", "ca": "1"}]),
+        headers={"Content-Type": "application/json", "User-Agent": "Pyxils-Open/0.1"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        result = json.loads(response.read().decode("utf-8"))[0]
+    nodes = result.get("f", [])
+    files: list[MegaFile] = []
+    for node in nodes:
+        if node.get("t") != 0 or not node.get("k") or not node.get("a"):
+            continue
+        node_key = None
+        attributes = None
+        for segment in str(node["k"]).split("/"):
+            encoded = segment.split(":")[-1]
+            try:
+                candidate = AES.new(folder_key, AES.MODE_ECB).decrypt(_decode(encoded))
+                candidate_attr = AES.new(candidate, AES.MODE_CBC, b"\0" * 16).decrypt(_decode(node["a"]))
+                if candidate_attr.startswith(b"MEGA"):
+                    attributes = json.loads(candidate_attr[4:].rstrip(b"\0").decode("utf-8"))
+                    if attributes.get("n"):
+                        node_key = candidate
+                        break
+            except (ValueError, KeyError, json.JSONDecodeError):
+                continue
+        if not node_key or not attributes:
+            continue
+        file_api_url = f"https://g.api.mega.co.nz/cs?id={random.randrange(1 << 30)}&n={folder_handle}"
+        file_request = urllib.request.Request(
+            file_api_url,
+            data=_encode_api_request([{"a": "g", "g": 1, "n": node["h"]}]),
+            headers={"Content-Type": "application/json", "User-Agent": "Pyxils-Open/0.1"},
+        )
+        with urllib.request.urlopen(file_request, timeout=timeout) as response:
+            file_result = json.loads(response.read().decode("utf-8"))[0]
+        if file_result.get("g") and file_result.get("s") is not None:
+            files.append(MegaFile(node["h"], node_key, attributes["n"], int(file_result["s"]), file_result["g"]))
+    return files
 
 
 def download_file(file: MegaFile, destination: str | Path,

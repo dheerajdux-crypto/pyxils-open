@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable
 
 from .persistence import load_metadata, remove_metadata, save_metadata
-from .mega import download_file as download_mega_file, fetch_file
+from .mega import download_file as download_mega_file, fetch_file, fetch_folder, is_public_folder_link
 
 
 @dataclass(frozen=True)
@@ -113,6 +113,17 @@ class DownloadManager:
                 timeout=timeout,
                 chunk_size=self.chunk_size,
             )
+        if is_public_folder_link(url):
+            target_dir = Path(destination)
+            if target_dir.suffix:
+                target_dir = target_dir.with_suffix("")
+            target_dir.mkdir(parents=True, exist_ok=True)
+            files = fetch_folder(url, timeout=timeout)
+            if not files:
+                raise RuntimeError("No downloadable files were found in the public MEGA folder")
+            for mega_file in files:
+                download_mega_file(mega_file, target_dir / mega_file.name, timeout=timeout, chunk_size=self.chunk_size)
+            return target_dir
         if connections > 1:
             result = self.probe(url, timeout=timeout)
             if result.content_length and result.accepts_ranges:
