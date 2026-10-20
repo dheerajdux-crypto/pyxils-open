@@ -6,6 +6,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -97,7 +98,11 @@ class DownloadManager:
                                response.geturl())
 
     def download(self, url: str, destination: str | Path, callback: Callable[[Progress], None] | None = None,
-                 timeout: float = 30) -> Path:
+                 timeout: float = 30, connections: int = 1) -> Path:
+        if connections > 1:
+            result = self.probe(url, timeout=timeout)
+            if result.content_length and result.accepts_ranges:
+                return self._download_segmented(url, destination, result.content_length, callback, timeout, connections)
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         existing = destination.stat().st_size if destination.exists() else 0
@@ -140,3 +145,85 @@ class DownloadManager:
                         callback(Progress(downloaded, total, speed, remaining))
             remove_metadata(destination)
         return destination
+
+    def _download_segmented(self, url: str, destination: str | Path, total: int,
+                            callback: Callable[[Progress], None] | None,
+                            timeout: float, connections: int) -> Path:
+        """Download a new file through independent HTTP byte ranges.
+
+        Segmented transfers use a temporary preallocated file. A cancelled or
+        paused transfer never exposes a partially assembled destination, and a
+        later call safely starts that segmented transfer again.
+        """
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        part_path = destination.with_name(destination.name + ".segments")
+        metadata = {"url": url, "bytes": 0, "total": total, "segmented": True, "updated": time.time()}
+        if part_path.exists():
+            part_path.unlink()
+        with part_path.open("wb") as output:
+            output.truncate(total)
+        save_metadata(destination, metadata)
+
+        workers = max(2, min(int(connections), total))
+        chunk = (total + workers - 1) // workers
+        ranges = [(start, min(start + chunk, total) - 1) for start in range(0, total, chunk)]
+        progress_lock = threading.Lock()
+        downloaded = 0
+        started = time.monotonic()
+        first_error: BaseException | None = None
+
+        def report() -> None:
+            elapsed = max(time.monotonic() - started, 1e-6)
+            speed = downloaded / elapsed
+            eta = (total - downloaded) / speed if speed > 0 else None
+            if callback:
+                callback(Progress(downloaded, total, speed, eta))
+
+        def worker(start: int, end: int) -> None:
+            nonlocal downloaded
+            headers = {"User-Agent": "Pyxils-Open/0.1", "Range": f"bytes={start}-{end}"}
+            request = urllib.request.Request(url, headers=headers)
+            response = self.opener(request, timeout=timeout)
+            with response:
+                if getattr(response, "status", 200) != 206:
+                    raise urllib.error.HTTPError(url, 200, "server did not honor byte range", response.headers, None)
+                position = start
+                with part_path.open("r+b") as output:
+                    output.seek(start)
+                    while position <= end:
+                        if self._cancel.is_set():
+                            raise DownloadCancelled()
+                        if self._pause.is_set():
+                            raise DownloadPaused()
+                        block = response.read(min(self.chunk_size, end - position + 1))
+                        if not block:
+                            raise IOError(f"range ended early at byte {position}")
+                        output.write(block)
+                        position += len(block)
+                        with progress_lock:
+                            downloaded += len(block)
+                            report()
+
+        try:
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pyxils-range") as pool:
+                futures = [pool.submit(worker, start, end) for start, end in ranges]
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except BaseException as exc:
+                        first_error = first_error or exc
+                        self._cancel.set()
+            if first_error:
+                raise first_error
+            part_path.replace(destination)
+            remove_metadata(destination)
+            return destination
+        except (DownloadPaused, DownloadCancelled):
+            save_metadata(destination, {**metadata, "bytes": downloaded, "updated": time.time()})
+            raise
+        except BaseException:
+            save_metadata(destination, {**metadata, "bytes": downloaded, "updated": time.time()})
+            raise
+        finally:
+            self._cancel.clear()

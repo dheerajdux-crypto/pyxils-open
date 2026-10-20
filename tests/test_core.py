@@ -14,6 +14,7 @@ from pyxils_open.persistence import load_metadata, metadata_path
 
 class Handler(BaseHTTPRequestHandler):
     payload = b"pyxils-open-test-data" * 500
+    range_requests = 0
 
     def do_HEAD(self):
         self.send_response(200)
@@ -25,6 +26,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         start = 0
         if self.headers.get("Range", "").startswith("bytes="):
+            type(self).range_requests += 1
             start = int(self.headers["Range"].split("=")[1].split("-")[0])
             self.send_response(206)
             self.send_header("Content-Range", f"bytes {start}-{len(self.payload)-1}/{len(self.payload)}")
@@ -77,6 +79,16 @@ class CoreTests(unittest.TestCase):
             destination.write_bytes(Handler.payload[:25])
             manager.download(self.url, destination)
             self.assertEqual(destination.read_bytes(), Handler.payload)
+            self.assertFalse(metadata_path(destination).exists())
+
+    def test_segmented_download_uses_multiple_ranges(self):
+        manager = DownloadManager(chunk_size=23)
+        Handler.range_requests = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "segmented.bin"
+            manager.download(self.url, destination, connections=4)
+            self.assertEqual(destination.read_bytes(), Handler.payload)
+            self.assertGreaterEqual(Handler.range_requests, 2)
             self.assertFalse(metadata_path(destination).exists())
 
     def test_pause_and_cancel_leave_resumable_metadata(self):

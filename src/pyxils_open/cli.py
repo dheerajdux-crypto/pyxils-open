@@ -18,6 +18,7 @@ class App(tk.Tk):
         self.manager = DownloadManager()
         self.url = tk.StringVar()
         self.destination = tk.StringVar(value=str(Path.home() / "Downloads" / "download.bin"))
+        self.connections = tk.IntVar(value=4)
         self.status = tk.StringVar(value="Ready")
         self.progress = tk.DoubleVar()
         self._build()
@@ -30,12 +31,14 @@ class App(tk.Tk):
         ttk.Label(frame, text="Destination").grid(row=2, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.destination).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 12))
         ttk.Button(frame, text="Choose…", command=self.choose).grid(row=3, column=2, padx=(8, 0))
-        ttk.Button(frame, text="Probe", command=self.probe).grid(row=4, column=0, sticky="w")
-        ttk.Button(frame, text="Download", command=self.start).grid(row=4, column=1, sticky="w")
-        ttk.Button(frame, text="Pause", command=self.manager.pause).grid(row=4, column=2, sticky="e")
-        ttk.Button(frame, text="Cancel", command=self.manager.cancel).grid(row=5, column=2, sticky="e", pady=8)
-        ttk.Progressbar(frame, variable=self.progress, maximum=100).grid(row=5, column=0, columnspan=2, sticky="ew", pady=8)
-        ttk.Label(frame, textvariable=self.status, wraplength=640).grid(row=6, column=0, columnspan=3, sticky="w")
+        ttk.Label(frame, text="Connections").grid(row=4, column=0, sticky="w")
+        ttk.Spinbox(frame, from_=1, to=16, textvariable=self.connections, width=6).grid(row=4, column=1, sticky="w")
+        ttk.Button(frame, text="Probe", command=self.probe).grid(row=5, column=0, sticky="w")
+        ttk.Button(frame, text="Download", command=self.start).grid(row=5, column=1, sticky="w")
+        ttk.Button(frame, text="Pause", command=self.manager.pause).grid(row=5, column=2, sticky="e")
+        ttk.Button(frame, text="Cancel", command=self.manager.cancel).grid(row=6, column=2, sticky="e", pady=8)
+        ttk.Progressbar(frame, variable=self.progress, maximum=100).grid(row=6, column=0, columnspan=2, sticky="ew", pady=8)
+        ttk.Label(frame, textvariable=self.status, wraplength=640).grid(row=7, column=0, columnspan=3, sticky="w")
         frame.columnconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
 
@@ -63,7 +66,8 @@ class App(tk.Tk):
             self.after(0, self.progress.set, percent)
             self.after(0, self.status.set, f"{format_bytes(value.downloaded)} · {format_bytes(value.speed_bytes_per_second)}/s · ETA {format_duration(value.eta_seconds)}")
         try:
-            path = self.manager.download(self.url.get().strip(), self.destination.get().strip(), update)
+            path = self.manager.download(self.url.get().strip(), self.destination.get().strip(), update,
+                                         connections=max(1, self.connections.get()))
             self.after(0, self.status.set, f"Complete: {path}")
         except DownloadPaused:
             self.after(0, self.status.set, "Paused; click Download to resume")

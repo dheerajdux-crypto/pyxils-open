@@ -11,6 +11,8 @@ user-interface strings from any existing application.
 - Python 3.12+ and Tkinter desktop UI.
 - URL probe using `HEAD`, with a safe `GET` fallback.
 - Streaming downloads with HTTP range resume where the server supports it.
+- Optional multi-connection segmented downloads for new files when the server
+  advertises byte ranges.
 - Thread-safe pause and cancel state.
 - Progress callbacks containing bytes, total size, speed, and ETA.
 - JSON metadata stored next to a download for restart/resume.
@@ -70,5 +72,7 @@ behavior depends on the remote server: servers that omit length headers or do
 not honor byte ranges cannot provide exact totals or true resume. Pause is
 cooperative (the stream is stopped between chunks), and an interrupted download
 can be resumed by starting it again with the same destination. Authentication,
-segmented downloads, checksums, and a production-grade job queue are out of
-scope.
+checksums, and a production-grade job queue are out of scope. Segmented
+transfers use a temporary `.segments` file and restart from the beginning if
+paused or cancelled; ordinary single-connection downloads retain their
+existing resumable behavior.
