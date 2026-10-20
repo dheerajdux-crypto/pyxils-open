@@ -56,6 +56,22 @@ make test
 It uses only the Python standard library and a local in-process HTTP server;
 no internet access is required.
 
+## Windows app
+
+The repository can be packaged as a double-clickable Windows executable. From
+PowerShell on Windows:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-dev.lock
+powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1
+```
+
+The result is `dist\PyxilsOpen.exe`. It runs without requiring Python to be
+installed on the target Windows machine. The same build is available through
+`make package` when GNU Make is installed. GitHub Actions can build the
+executable manually or for a version tag such as `v0.1.0`.
+
 ## Docker
 
 Build and run the package with:
