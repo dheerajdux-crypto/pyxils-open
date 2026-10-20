@@ -149,6 +149,7 @@ class App(tk.Tk):
         search.insert(0, "⌕  Search downloads")
         search.pack(side="left", ipady=7, padx=(0, 10))
         tk.Button(actions, text="＋  New link", command=self._focus_url, bg=c["accent"], fg="#2a130a", activebackground=c["accent_hover"], relief="flat", borderwidth=0, padx=13, pady=8, font=("TkDefaultFont", 9, "bold"), cursor="hand2").pack(side="left")
+        tk.Button(actions, text="▣  Open MEGA folder", command=self._open_mega_folder, bg=c["surface_alt"], fg=c["text"], activebackground=c["border"], relief="flat", borderwidth=0, padx=13, pady=8, font=("TkDefaultFont", 9, "bold"), cursor="hand2").pack(side="left", padx=(8, 0))
         return top
 
     def _build_downloads(self, parent: tk.Frame, page: str) -> None:
@@ -216,6 +217,13 @@ class App(tk.Tk):
         tk.Label(card, text="FOLDER CONTENTS", bg=c["surface"], fg=c["muted"], font=("TkDefaultFont", 8, "bold")).pack(anchor="w")
         list_frame = tk.Frame(card, bg=c["surface"])
         list_frame.pack(fill="both", expand=True, pady=(7, 0))
+        self.folder_empty = tk.Frame(list_frame, bg=c["surface_alt"], padx=12, pady=20)
+        self.folder_empty.pack(fill="both", expand=True)
+        tk.Label(self.folder_empty, text="▱", bg=c["surface_alt"], fg=c["accent"], font=("TkDefaultFont", 34)).pack()
+        self.folder_empty_title = tk.Label(self.folder_empty, text="No MEGA folder loaded", bg=c["surface_alt"], fg=c["text"], font=("TkDefaultFont", 10, "bold"))
+        self.folder_empty_title.pack(pady=(3, 3))
+        self.folder_empty_detail = tk.Label(self.folder_empty, text="Enter a public folder URL, then click Probe URL.", bg=c["surface_alt"], fg=c["muted"], font=("TkDefaultFont", 8), wraplength=280, justify="center")
+        self.folder_empty_detail.pack()
         self.folder_tree = ttk.Treeview(list_frame, columns=("name", "size"), show="headings", height=5)
         self.folder_tree.heading("name", text="Name", anchor="w")
         self.folder_tree.heading("size", text="Size", anchor="e")
@@ -291,6 +299,13 @@ class App(tk.Tk):
         self.show_page("downloads")
         self.after(50, lambda: self.url_entry.focus_set())
 
+    def _open_mega_folder(self) -> None:
+        """Bring the public MEGA folder workflow into focus."""
+        self.show_page("downloads")
+        self.status.set("Ready for a MEGA folder")
+        self.status_detail.set("Paste a public MEGA folder URL, then click Probe URL to browse its files.")
+        self.after(50, self.url_entry.focus_set)
+
     def choose(self) -> None:
         if is_public_folder_link(self.url.get().strip()):
             chosen = filedialog.askdirectory(title="Choose folder for MEGA files")
@@ -302,14 +317,22 @@ class App(tk.Tk):
     def _clear_folder_files(self) -> None:
         for item in self.folder_tree.get_children():
             self.folder_tree.delete(item)
-        self.folder_tree.insert("", "end", values=("Probe a public MEGA folder to browse its files", ""))
+        self.folder_tree.pack_forget()
+        self.folder_empty_title.configure(text="No MEGA folder loaded")
+        self.folder_empty_detail.configure(text="Enter a public folder URL, then click Probe URL.")
+        self.folder_empty.pack(fill="both", expand=True)
 
     def _show_folder_files(self, files) -> None:
         for item in self.folder_tree.get_children():
             self.folder_tree.delete(item)
         if not files:
-            self.folder_tree.insert("", "end", values=("No downloadable files found", ""))
+            self.folder_tree.pack_forget()
+            self.folder_empty_title.configure(text="No downloadable files found")
+            self.folder_empty_detail.configure(text="This public MEGA folder did not contain downloadable files.")
+            self.folder_empty.pack(fill="both", expand=True)
             return
+        self.folder_empty.pack_forget()
+        self.folder_tree.pack(side="left", fill="both", expand=True)
         for mega_file in files:
             self.folder_tree.insert("", "end", values=(mega_file.name, format_bytes(mega_file.size)))
 
