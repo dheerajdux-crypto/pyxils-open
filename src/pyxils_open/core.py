@@ -6,6 +6,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,7 +99,7 @@ class DownloadManager:
                                response.geturl())
 
     def download(self, url: str, destination: str | Path, callback: Callable[[Progress], None] | None = None,
-                 timeout: float = 30, connections: int = 1) -> Path:
+                 timeout: float = 120, connections: int = 1) -> Path:
         if connections > 1:
             result = self.probe(url, timeout=timeout)
             if result.content_length and result.accepts_ranges:
@@ -182,28 +183,35 @@ class DownloadManager:
 
         def worker(start: int, end: int) -> None:
             nonlocal downloaded
-            headers = {"User-Agent": "Pyxils-Open/0.1", "Range": f"bytes={start}-{end}"}
-            request = urllib.request.Request(url, headers=headers)
-            response = self.opener(request, timeout=timeout)
-            with response:
-                if getattr(response, "status", 200) != 206:
-                    raise urllib.error.HTTPError(url, 200, "server did not honor byte range", response.headers, None)
-                position = start
-                with part_path.open("r+b") as output:
-                    output.seek(start)
-                    while position <= end:
-                        if self._cancel.is_set():
-                            raise DownloadCancelled()
-                        if self._pause.is_set():
-                            raise DownloadPaused()
-                        block = response.read(min(self.chunk_size, end - position + 1))
-                        if not block:
-                            raise IOError(f"range ended early at byte {position}")
-                        output.write(block)
-                        position += len(block)
-                        with progress_lock:
-                            downloaded += len(block)
-                            report()
+            position = start
+            for attempt in range(3):
+                try:
+                    headers = {"User-Agent": "Pyxils-Open/0.1", "Range": f"bytes={position}-{end}"}
+                    request = urllib.request.Request(url, headers=headers)
+                    response = self.opener(request, timeout=timeout)
+                    with response:
+                        if getattr(response, "status", 200) != 206:
+                            raise urllib.error.HTTPError(url, 200, "server did not honor byte range", response.headers, None)
+                        with part_path.open("r+b") as output:
+                            output.seek(position)
+                            while position <= end:
+                                if self._cancel.is_set():
+                                    raise DownloadCancelled()
+                                if self._pause.is_set():
+                                    raise DownloadPaused()
+                                block = response.read(min(self.chunk_size, end - position + 1))
+                                if not block:
+                                    raise IOError(f"range ended early at byte {position}")
+                                output.write(block)
+                                position += len(block)
+                                with progress_lock:
+                                    downloaded += len(block)
+                                    report()
+                    return
+                except (TimeoutError, socket.timeout, urllib.error.URLError):
+                    if attempt == 2:
+                        raise
+                    time.sleep(2 ** attempt)
 
         try:
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pyxils-range") as pool:

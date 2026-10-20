@@ -16,6 +16,8 @@ user-interface strings from any existing application.
 - Thread-safe pause and cancel state.
 - Progress callbacks containing bytes, total size, speed, and ETA.
 - JSON metadata stored next to a download for restart/resume.
+- Slow or temporarily stalled range requests are retried from the last byte
+  position before the transfer is reported as failed.
 - A modern dark Tkinter interface with URL/destination fields, connection
   selection, progress details, and accessible pause/cancel controls.
 - Standard library implementation; no runtime third-party dependencies.
