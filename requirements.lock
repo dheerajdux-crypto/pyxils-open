@@ -1,1 +1,1 @@
-# Runtime dependencies: none (Python 3.12 standard library only).
+pycryptodome==3.23.0

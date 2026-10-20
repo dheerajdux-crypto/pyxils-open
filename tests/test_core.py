@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pyxils_open.core import DownloadCancelled, DownloadManager, DownloadPaused, format_bytes, format_duration
+from pyxils_open.mega import parse_public_link
 from pyxils_open.persistence import load_metadata, metadata_path
 
 
@@ -59,6 +60,11 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(format_bytes(512), "512 B")
         self.assertEqual(format_bytes(2048), "2.0 KB")
         self.assertEqual(format_duration(65), "1m 05s")
+
+    def test_parse_public_mega_link(self):
+        handle, key = parse_public_link("https://mega.nz/file/MdxVxYqB#XhionEwX335axGOq1lqq7HAfZgyyq12x8q5QxZ35rlo")
+        self.assertEqual(handle, "MdxVxYqB")
+        self.assertEqual(len(key), 32)
 
     def test_probe_and_download_persist_cleanup(self):
         manager = DownloadManager(chunk_size=17)

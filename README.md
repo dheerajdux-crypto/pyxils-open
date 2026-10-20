@@ -20,7 +20,9 @@ user-interface strings from any existing application.
   position before the transfer is reported as failed.
 - A modern dark Tkinter interface with URL/destination fields, connection
   selection, progress details, and accessible pause/cancel controls.
-- Standard library implementation; no runtime third-party dependencies.
+- Public MEGA file-link downloads with client-side decryption and resumable
+  encrypted transfer support.
+- A small pinned runtime dependency on PyCryptodome for MEGA AES decryption.
 
 ## Setup
 
@@ -46,6 +48,11 @@ Paste a URL, choose a destination, select the connection count, then click
 **Probe URL** or **Download**. The dark interface keeps transfer status, speed,
 ETA, and resume guidance visible while the download runs. The command `make
 run` is equivalent on systems with Make.
+
+Public MEGA file links are accepted directly. Pyxils Open resolves the link
+through MEGA's public file API, decrypts the file locally, and saves the
+original file name when the destination is still `download.bin`. Account-only
+links, folders, uploads, and MEGA login are not included yet.
 
 ## Test
 

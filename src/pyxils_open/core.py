@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable
 
 from .persistence import load_metadata, remove_metadata, save_metadata
+from .mega import download_file as download_mega_file, fetch_file
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,18 @@ class DownloadManager:
 
     def download(self, url: str, destination: str | Path, callback: Callable[[Progress], None] | None = None,
                  timeout: float = 120, connections: int = 1) -> Path:
+        if "mega.nz/file/" in url and "#" in url:
+            mega_file = fetch_file(url, timeout=timeout)
+            mega_destination = Path(destination)
+            if mega_destination.name == "download.bin":
+                mega_destination = mega_destination.with_name(mega_file.name)
+            return download_mega_file(
+                mega_file,
+                mega_destination,
+                lambda done, total, speed, eta: callback(Progress(done, total, speed, eta)) if callback else None,
+                timeout=timeout,
+                chunk_size=self.chunk_size,
+            )
         if connections > 1:
             result = self.probe(url, timeout=timeout)
             if result.content_length and result.accepts_ranges:
