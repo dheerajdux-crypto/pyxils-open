@@ -22,8 +22,8 @@ user-interface strings from any existing application.
   selection, progress details, and accessible pause/cancel controls.
 - Public MEGA file-link downloads with client-side decryption and resumable
   encrypted transfer support.
-- Public MEGA folder links with file discovery and batch download into a local
-  folder.
+- Public MEGA folder links with file discovery, a name-and-size browsing list,
+  and batch download into a local folder.
 - A small pinned runtime dependency on PyCryptodome for MEGA AES decryption.
 
 ## Setup
@@ -55,7 +55,9 @@ Public MEGA file links are accepted directly. Pyxils Open resolves the link
 through MEGA's public file API, decrypts the file locally, and saves the
 original file name when the destination is still `download.bin`. Account-only
 links, uploads, and MEGA login are not included yet. Public folders are
-downloaded as a flat batch; nested folder preservation is not included yet.
+downloaded as a flat batch; after **Probe URL**, the UI shows the discovered
+file names and sizes, and **Choose…** opens a folder chooser for the batch
+destination. Nested folder preservation is not included yet.
 
 ## Test
 

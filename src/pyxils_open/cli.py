@@ -88,6 +88,22 @@ class App(tk.Tk):
         self.cancel_button = ttk.Button(actions, text="Cancel", style="Danger.TButton", command=self.manager.cancel, state="disabled")
         self.cancel_button.pack(side="right", padx=(0, 10))
 
+        folder_card = ttk.Frame(root, style="Card.TFrame", padding=(18, 14))
+        folder_card.pack(fill="both", expand=False, pady=(14, 0))
+        ttk.Label(folder_card, text="FOLDER CONTENTS", style="Field.TLabel").pack(anchor="w")
+        folder_list = ttk.Frame(folder_card, style="Card.TFrame")
+        folder_list.pack(fill="x", pady=(7, 0))
+        self.folder_tree = ttk.Treeview(folder_list, columns=("name", "size"), show="headings", height=5)
+        self.folder_tree.heading("name", text="Name", anchor="w")
+        self.folder_tree.heading("size", text="Size", anchor="e")
+        self.folder_tree.column("name", anchor="w", width=520, stretch=True)
+        self.folder_tree.column("size", anchor="e", width=120, stretch=False)
+        folder_scroll = ttk.Scrollbar(folder_list, orient="vertical", command=self.folder_tree.yview)
+        self.folder_tree.configure(yscrollcommand=folder_scroll.set)
+        self.folder_tree.pack(side="left", fill="x", expand=True)
+        folder_scroll.pack(side="right", fill="y")
+        self._clear_folder_files()
+
         status_card = ttk.Frame(root, style="Card.TFrame", padding=18)
         status_card.pack(fill="x", pady=(22, 0))
         status_line = ttk.Frame(status_card, style="Card.TFrame")
@@ -104,12 +120,30 @@ class App(tk.Tk):
         self.url_entry.focus_set()
 
     def choose(self) -> None:
-        chosen = filedialog.asksaveasfilename()
+        if is_public_folder_link(self.url.get().strip()):
+            chosen = filedialog.askdirectory(title="Choose folder for MEGA files")
+        else:
+            chosen = filedialog.asksaveasfilename()
         if chosen:
             self.destination.set(chosen)
 
+    def _clear_folder_files(self) -> None:
+        for item in self.folder_tree.get_children():
+            self.folder_tree.delete(item)
+        self.folder_tree.insert("", "end", values=("Probe a public MEGA folder to browse its files", ""))
+
+    def _show_folder_files(self, files) -> None:
+        for item in self.folder_tree.get_children():
+            self.folder_tree.delete(item)
+        if not files:
+            self.folder_tree.insert("", "end", values=("No downloadable files found", ""))
+            return
+        for mega_file in files:
+            self.folder_tree.insert("", "end", values=(mega_file.name, format_bytes(mega_file.size)))
+
     def probe(self) -> None:
         try:
+            self._clear_folder_files()
             if "mega.nz/file/" in self.url.get() and "#" in self.url.get():
                 mega_file = fetch_file(self.url.get().strip())
                 self.status.set("MEGA link ready")
@@ -117,6 +151,7 @@ class App(tk.Tk):
                 return
             if is_public_folder_link(self.url.get().strip()):
                 files = fetch_folder(self.url.get().strip())
+                self._show_folder_files(files)
                 self.status.set("MEGA folder ready")
                 self.status_detail.set(f"{len(files)} downloadable file(s) · choose a destination folder")
                 return
