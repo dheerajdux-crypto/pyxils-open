@@ -93,7 +93,7 @@ class App(tk.Tk):
         self.rail.pack(side="left", fill="y")
         self.rail.pack_propagate(False)
         tk.Label(self.rail, text="P", bg=c["accent"], fg="#25120b", font=("TkDefaultFont", 17, "bold"), width=2, height=1).pack(pady=(20, 26))
-        self._rail_button("⌂", "downloads", "Downloads").pack(pady=4)
+        self._rail_button("⌂", "downloads", "Download from link").pack(pady=4)
         self._rail_button("↗", "downloads", "New download").pack(pady=4)
         tk.Frame(self.rail, bg=c["rail"]).pack(fill="both", expand=True)
         self._rail_button("⚙", "settings", "Settings").pack(pady=(4, 18))
@@ -113,7 +113,8 @@ class App(tk.Tk):
         c = self.COLORS
         tk.Label(self.sidebar, text="PYXILS OPEN", bg=c["sidebar"], fg=c["faint"], font=("TkDefaultFont", 8, "bold")).pack(anchor="w", padx=22, pady=(25, 27))
         tk.Label(self.sidebar, text="WORKSPACE", bg=c["sidebar"], fg=c["faint"], font=("TkDefaultFont", 8, "bold")).pack(anchor="w", padx=22, pady=(0, 8))
-        self._sidebar_button("downloads", "▣  Downloads").pack(fill="x", padx=12)
+        self._sidebar_button("downloads", "↓  Download from link").pack(fill="x", padx=12)
+        self._sidebar_button("mega_folder", "▣  MEGA folder").pack(fill="x", padx=12)
         self._sidebar_button("completed", "✓  Completed").pack(fill="x", padx=12)
         self._sidebar_button("favorites", "☆  Favorites").pack(fill="x", padx=12)
 
@@ -149,11 +150,14 @@ class App(tk.Tk):
         search.insert(0, "⌕  Search downloads")
         search.pack(side="left", ipady=7, padx=(0, 10))
         tk.Button(actions, text="＋  New link", command=self._focus_url, bg=c["accent"], fg="#2a130a", activebackground=c["accent_hover"], relief="flat", borderwidth=0, padx=13, pady=8, font=("TkDefaultFont", 9, "bold"), cursor="hand2").pack(side="left")
-        tk.Button(actions, text="▣  Open MEGA folder", command=self._open_mega_folder, bg=c["surface_alt"], fg=c["text"], activebackground=c["border"], relief="flat", borderwidth=0, padx=13, pady=8, font=("TkDefaultFont", 9, "bold"), cursor="hand2").pack(side="left", padx=(8, 0))
+        tk.Button(actions, text="▣  MEGA folder", command=self._open_mega_folder, bg=c["surface_alt"], fg=c["text"], activebackground=c["border"], relief="flat", borderwidth=0, padx=13, pady=8, font=("TkDefaultFont", 9, "bold"), cursor="hand2").pack(side="left", padx=(8, 0))
         return top
 
     def _build_downloads(self, parent: tk.Frame, page: str) -> None:
-        self._build_topbar(parent, "Downloads" if page == "downloads" else page.title(), "Keep every transfer close at hand")
+        if page == "mega_folder":
+            self._build_mega_folder_page(parent)
+            return
+        self._build_topbar(parent, "Download from link" if page == "downloads" else page.title(), "Keep every transfer close at hand")
         body = tk.Frame(parent, bg=self.COLORS["window"])
         body.pack(fill="both", expand=True, padx=34, pady=(0, 28))
         body.columnconfigure(0, weight=3)
@@ -175,8 +179,74 @@ class App(tk.Tk):
         right.grid(row=1, column=1, sticky="nsew")
         right.rowconfigure(0, weight=1)
         right.rowconfigure(1, weight=1)
+        self._build_link_info_card(right)
+        self._build_status_card(right)
+
+    def _build_link_info_card(self, parent: tk.Frame) -> None:
+        c = self.COLORS
+        card = tk.Frame(parent, bg=c["surface"], padx=16, pady=16)
+        card.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+        tk.Label(card, text="DOWNLOAD FROM LINK", bg=c["surface"], fg=c["text"], font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        tk.Label(card, text="Use this section for a single HTTP or MEGA file URL. For public MEGA folders, open the dedicated MEGA folder section.", bg=c["surface"], fg=c["muted"], font=("TkDefaultFont", 9), wraplength=330, justify="left").pack(anchor="w", pady=(10, 0))
+        tk.Label(card, text="The folder preview is kept separate so file downloads and folder browsing do not overlap.", bg=c["surface"], fg=c["faint"], font=("TkDefaultFont", 8), wraplength=330, justify="left").pack(anchor="w", pady=(16, 0))
+
+    def _build_mega_folder_page(self, parent: tk.Frame) -> None:
+        """Build the MEGA-only browser/preview surface.
+
+        This intentionally reuses the existing public-link parser and download
+        manager. It does not add a server-side mirror or other heavy backend.
+        """
+        c = self.COLORS
+        self._build_topbar(parent, "MEGA folder", "Preview a public folder, then download its files")
+        body = tk.Frame(parent, bg=c["window"])
+        body.pack(fill="both", expand=True, padx=34, pady=(0, 28))
+        body.columnconfigure(0, weight=2)
+        body.columnconfigure(1, weight=3)
+        body.rowconfigure(1, weight=1)
+
+        intro = tk.Frame(body, bg=c["surface"])
+        intro.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 14))
+        tk.Label(intro, text="▣", bg=c["surface"], fg=c["accent"], font=("TkDefaultFont", 25)).pack(side="left", padx=(22, 14), pady=14)
+        copy = tk.Frame(intro, bg=c["surface"])
+        copy.pack(side="left", pady=11)
+        tk.Label(copy, text="MEGA folder preview", bg=c["surface"], fg=c["text"], font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        tk.Label(copy, text="Paste a public MEGA folder URL to inspect its files before downloading.", bg=c["surface"], fg=c["muted"], font=("TkDefaultFont", 9)).pack(anchor="w", pady=(3, 0))
+
+        form = tk.Frame(body, bg=c["surface"], padx=20, pady=17)
+        form.grid(row=1, column=0, sticky="nsew", padx=(0, 14))
+        self._build_mega_folder_form(form)
+        right = tk.Frame(body, bg=c["window"])
+        right.grid(row=1, column=1, sticky="nsew")
+        right.rowconfigure(0, weight=1)
+        right.rowconfigure(1, weight=1)
         self._build_folder_card(right)
         self._build_status_card(right)
+
+    def _build_mega_folder_form(self, card: tk.Frame) -> None:
+        c = self.COLORS
+        tk.Label(card, text="MEGA FOLDER", bg=c["surface"], fg=c["text"], font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        tk.Label(card, text="PUBLIC FOLDER URL", bg=c["surface"], fg=c["muted"], font=("TkDefaultFont", 8, "bold")).pack(anchor="w", pady=(20, 6))
+        self.url_entry = ttk.Entry(card, textvariable=self.url)
+        self.url_entry.pack(fill="x")
+        tk.Label(card, text="DESTINATION FOLDER", bg=c["surface"], fg=c["muted"], font=("TkDefaultFont", 8, "bold")).pack(anchor="w", pady=(15, 6))
+        destination_row = tk.Frame(card, bg=c["surface"])
+        destination_row.pack(fill="x")
+        ttk.Entry(destination_row, textvariable=self.destination).pack(side="left", fill="x", expand=True)
+        tk.Button(destination_row, text="Choose", command=self.choose, bg=c["surface_alt"], fg=c["text"], activebackground=c["border"], relief="flat", borderwidth=0, padx=10, pady=7, cursor="hand2").pack(side="left", padx=(7, 0))
+        tk.Label(card, text="CONNECTIONS", bg=c["surface"], fg=c["muted"], font=("TkDefaultFont", 8, "bold")).pack(anchor="w", pady=(15, 6))
+        ttk.Combobox(card, textvariable=self.connections, values=("1 connection", "4 connections", "8 connections", "16 connections"), state="readonly", width=15).pack(anchor="w")
+        actions = tk.Frame(card, bg=c["surface"])
+        actions.pack(fill="x", pady=(21, 0))
+        self.probe_button = tk.Button(actions, text="Preview folder", command=self.probe, bg=c["surface_alt"], fg=c["text"], activebackground=c["border"], relief="flat", borderwidth=0, padx=13, pady=9, cursor="hand2")
+        self.probe_button.pack(side="left")
+        self.download_button = tk.Button(actions, text="↓  Download folder", command=self.start, bg=c["accent"], fg="#2a130a", activebackground=c["accent_hover"], relief="flat", borderwidth=0, padx=18, pady=9, font=("TkDefaultFont", 9, "bold"), cursor="hand2")
+        self.download_button.pack(side="right")
+        self.pause_button = tk.Button(actions, text="Pause", command=self.manager.pause, state="disabled", bg=c["surface_alt"], fg=c["muted"], activebackground=c["border"], relief="flat", borderwidth=0, padx=11, pady=9)
+        self.pause_button.pack(side="right", padx=(0, 7))
+        self.cancel_button = tk.Button(actions, text="Cancel", command=self.manager.cancel, state="disabled", bg=c["surface_alt"], fg=c["danger"], activebackground=c["border"], relief="flat", borderwidth=0, padx=11, pady=9)
+        self.cancel_button.pack(side="right", padx=(0, 7))
+        tk.Label(card, text="Public MEGA folder preview and download only; no mirror backend required.", bg=c["surface"], fg=c["faint"], font=("TkDefaultFont", 8), wraplength=330).pack(anchor="w", pady=(18, 0))
+        self.url_entry.focus_set()
 
     def _build_download_form(self, card: tk.Frame) -> None:
         c = self.COLORS
@@ -301,7 +371,7 @@ class App(tk.Tk):
 
     def _open_mega_folder(self) -> None:
         """Bring the public MEGA folder workflow into focus."""
-        self.show_page("downloads")
+        self.show_page("mega_folder")
         self.status.set("Ready for a MEGA folder")
         self.status_detail.set("Paste a public MEGA folder URL, then click Probe URL to browse its files.")
         self.after(50, self.url_entry.focus_set)
@@ -338,13 +408,18 @@ class App(tk.Tk):
 
     def probe(self) -> None:
         try:
-            self._clear_folder_files()
+            if hasattr(self, "folder_tree"):
+                self._clear_folder_files()
             if "mega.nz/file/" in self.url.get() and "#" in self.url.get():
                 mega_file = fetch_file(self.url.get().strip())
                 self.status.set("MEGA link ready")
                 self.status_detail.set(f"{mega_file.name} · {format_bytes(mega_file.size)} · encrypted public file")
                 return
             if is_public_folder_link(self.url.get().strip()):
+                if not hasattr(self, "folder_tree"):
+                    self.status.set("MEGA folder link detected")
+                    self.status_detail.set("Open the MEGA folder section to preview and download its contents.")
+                    return
                 files = fetch_folder(self.url.get().strip())
                 self._show_folder_files(files)
                 self.status.set("MEGA folder ready")
