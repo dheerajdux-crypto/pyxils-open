@@ -16,6 +16,8 @@ user-interface strings from any existing application.
 - Thread-safe pause and cancel state.
 - Progress callbacks containing bytes, total size, speed, and ETA.
 - JSON metadata stored next to a download for restart/resume.
+- A modern dark Tkinter interface with URL/destination fields, connection
+  selection, progress details, and accessible pause/cancel controls.
 - Standard library implementation; no runtime third-party dependencies.
 
 ## Setup
@@ -38,8 +40,10 @@ Linux distributions, install the system package `python3-tk` if needed.
 python -m pyxils_open
 ```
 
-Paste a URL, choose a destination, click **Probe**, then **Download**. The
-command `make run` is equivalent on systems with Make.
+Paste a URL, choose a destination, select the connection count, then click
+**Probe URL** or **Download**. The dark interface keeps transfer status, speed,
+ETA, and resume guidance visible while the download runs. The command `make
+run` is equivalent on systems with Make.
 
 ## Test
 
